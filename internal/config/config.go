@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -26,7 +27,7 @@ func Load() *Config {
 
 	config := &Config{
 		DB_HOST:     getEnv("DB_HOST", "localhost"),
-		DB_PORT:     getEnv("DB_PORT", "5432"),
+		DB_PORT:     getEnv("DB_PORT", "5433"),
 		DB_USER:     getEnv("DB_USER", "postgres"),
 		DB_PASSWORD: getEnv("DB_PASSWORD", ""),
 		DB_NAME:     getEnv("DB_NAME", "subscription_db"),
@@ -50,4 +51,15 @@ func getEnv(key, defaultValue string) string {
 	}
 
 	return value
+}
+
+func (cfg *Config) ConnectionStringToDB() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.DB_HOST, cfg.DB_PORT, cfg.DB_USER, cfg.DB_PASSWORD, cfg.DB_NAME, cfg.SSL_MODE)
+}
+
+func (cfg *Config) ConnectionStringToMigrator() string {
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		cfg.DB_USER, cfg.DB_PASSWORD, cfg.DB_HOST, cfg.DB_PORT, cfg.DB_NAME, cfg.SSL_MODE)
 }
