@@ -26,4 +26,5 @@ func main() {
 
 	log.Println("База данных готова к работе")
 
+	//server := server.NewServer(r, cfg.SERVER_PORT)
 }
