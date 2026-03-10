@@ -5,6 +5,11 @@ import (
 	"net/http"
 )
 
+func GetHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("hello"))
+	w.WriteHeader(http.StatusOK)
+}
+
 // функция для формирования json ответа при ошибках
 func jsonError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")

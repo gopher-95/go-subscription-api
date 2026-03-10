@@ -16,7 +16,7 @@ func NewStorage(db *sql.DB) *Storage {
 }
 
 func (storage *Storage) CreateSub(sub *models.Subscription) (int, error) {
-	query := "INSERT into subscriptions (service_name, price, user_id, start_date, end_date) VALUES ($1,$2,$3,$4,$5) RETURNING id"
+	query := "INSERT INTO subscriptions (service_name, price, user_id, start_date, end_date) VALUES ($1,$2,$3,$4,$5) RETURNING id"
 
 	var id int
 
@@ -87,7 +87,7 @@ func (storage *Storage) DeleteById(id int) (int, error) {
 	return int(rowsAffected), nil
 }
 
-func (storage *Storage) GetAll(limit int, offset int) (int, error) {
+func (storage *Storage) GetAll(limit int, offset int) ([]models.Subscription, error) {
 	var subscriptions []models.Subscription
 
 	query := `SELECT id, service_name, price, user_id, start_date, end_date 
@@ -97,7 +97,7 @@ func (storage *Storage) GetAll(limit int, offset int) (int, error) {
 
 	rows, err := storage.db.Query(query, limit, offset)
 	if err != nil {
-		return 0, fmt.Errorf("ошибка выполнения запроса getall: %w", err)
+		return nil, fmt.Errorf("ошибка выполнения запроса getall: %w", err)
 	}
 	defer rows.Close()
 
@@ -112,7 +112,7 @@ func (storage *Storage) GetAll(limit int, offset int) (int, error) {
 			&subscription.StartDate,
 			&endDateNull)
 		if err != nil {
-			return 0, fmt.Errorf("ошибка сканирования строки: %w", err)
+			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
 		}
 
 		if endDateNull.Valid {
@@ -126,13 +126,8 @@ func (storage *Storage) GetAll(limit int, offset int) (int, error) {
 
 	err = rows.Err()
 	if err != nil {
-		return 0, fmt.Errorf("ошибка при итерации по строкам: %w", err)
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %w", err)
 	}
 
-	sum := 1
-	for key := range subscriptions {
-		sum += key
-	}
-
-	return sum, nil
+	return subscriptions, nil
 }

@@ -12,7 +12,7 @@ type SubscriptionStorage interface {
 	Get(id int) (*models.Subscription, error)
 	Update(id int, sub *models.Subscription) (int, error)
 	Delete(id int) (int, error)
-	GetAll(limit int, offest int) (int, error)
+	GetAll(limit int, offest int) ([]models.Subscription, error)
 }
 
 type Service struct {
@@ -25,8 +25,20 @@ func NewService(storage SubscriptionStorage) *Service {
 
 func (s *Service) Create(sub models.CreateSubscriptionRequest) (int, error) {
 	//начало проверки входных данных из хэндлера
+	if sub.ServiceName == "" {
+		return 0, errors.New("название подписки не указано")
+	}
+
 	if sub.Price < 0 {
 		return 0, errors.New("цена не может быть меньше нуля")
+	}
+
+	if sub.UserID == "" {
+		return 0, errors.New("не указан user_id")
+	}
+
+	if sub.StartDate == "" {
+		return 0, errors.New("не указана дата начала подписки")
 	}
 
 	startDateParse, err := time.Parse("02-01-2006", sub.StartDate)
@@ -69,13 +81,16 @@ func (s *Service) Create(sub models.CreateSubscriptionRequest) (int, error) {
 	return id, nil
 }
 
-func (s *Service) Get(id int) (int, error) {
+func (s *Service) Get(id int) (*models.Subscription, error) {
+	if id == 0 {
+		return nil, errors.New("id не может быть равен нулю")
+	}
 	subscription, err := s.storage.Get(id)
 	if err != nil {
-		return 0, errors.New("ошибка получения данных из бд")
+		return nil, errors.New("ошибка получения данных из бд")
 	}
 
-	return subscription.ID, nil
+	return subscription, nil
 }
 
 func (s *Service) Update(id int, user_id string, sub models.UpdateSubscriptionRequest) (int, error) {
@@ -92,31 +107,30 @@ func (s *Service) Update(id int, user_id string, sub models.UpdateSubscriptionRe
 		return 0, errors.New("ошибка выполнения update запроса, не указан start_date")
 	}
 
-	parsedStartTime, err := time.Parse("02-01-2006", sub.StartDate)
+	startDateParse, err := time.Parse("02-01-2006", sub.StartDate)
 	if err != nil {
 		return 0, errors.New("не удалось запарсить время")
 	}
 
-	var parsedEndTime *time.Time
+	var endDateParse *time.Time
 	if sub.EndDate != nil {
 		parsed, err := time.Parse("02-01-2006", *sub.EndDate)
 		if err != nil {
 			return 0, errors.New("ошибка парсинга времени в update запросе: end_date")
 		}
 
-		parsedEndTime = &parsed
+		endDateParse = &parsed
 
 	}
 
 	//конец проверки входных данных от хэндлера
 
 	subscription := models.Subscription{
-		ID:          id,
 		ServiceName: sub.ServiceName,
 		Price:       sub.Price,
 		UserID:      user_id,
-		StartDate:   parsedStartTime,
-		EndDate:     parsedEndTime,
+		StartDate:   startDateParse,
+		EndDate:     endDateParse,
 	}
 
 	rowsAffected, err := s.storage.Update(id, &subscription)
@@ -140,16 +154,20 @@ func (s *Service) Delete(id int) (int, error) {
 	return rowsAffected, nil
 }
 
-func (s *Service) GetAll(limit, offset int) (int, error) {
-	if limit == 0 || offset == 0 {
-		return 0, errors.New("ошибка выполнения getall запроса: не указаны limit и offset")
+func (s *Service) GetAll(limit, offset int) ([]models.Subscription, error) {
+	if limit <= 0 {
+		limit = 10
 	}
 
-	rows, err := s.storage.GetAll(limit, offset)
+	if offset < 0 {
+		offset = 0
+	}
+
+	subscriptions, err := s.storage.GetAll(limit, offset)
 	if err != nil {
-		return 0, errors.New("ошибка выполнения getall запроса к бд")
+		return subscriptions, errors.New("ошибка выполнения getall запроса к бд")
 	}
 
-	return rows, nil
+	return subscriptions, nil
 
 }
