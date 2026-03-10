@@ -4,14 +4,13 @@ import (
 	"log"
 
 	"github.com/gopher-95/go-subscription-api/internal/config"
-	"github.com/gopher-95/go-subscription-api/internal/migrator"
 	"github.com/gopher-95/go-subscription-api/internal/repository"
 )
 
 func main() {
 	cfg := config.Load()
 
-	err := migrator.RunMigrations(cfg.ConnectionStringToMigrator())
+	err := repository.RunMigrations(cfg.ConnectionStringToMigrator())
 	if err != nil {
 		log.Fatal("не удалось создать миграции для бд: ", err)
 	}

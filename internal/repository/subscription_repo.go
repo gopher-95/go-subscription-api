@@ -4,19 +4,23 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/gopher-95/go-subscription-api/internal/domain"
+	"github.com/gopher-95/go-subscription-api/internal/models"
 )
 
-type Repository struct {
+type Storage struct {
 	db *sql.DB
 }
 
-func (r *Repository) GetById(id int64) (*domain.Subscription, error) {
-	sub := &domain.Subscription{}
+func NewStorage(db *sql.DB) *Storage {
+	return &Storage{db: db}
+}
+
+func (storage *Storage) GetById(id int64) (*models.Subscription, error) {
+	sub := &models.Subscription{}
 
 	query := "SELECT id, service_name, price, user_id, start_date, end_date FROM subscriptions WHERE id = $1"
 
-	err := r.db.QueryRow(query, id).Scan(
+	err := storage.db.QueryRow(query, id).Scan(
 		&sub.ID,
 		&sub.ServiceName,
 		&sub.Price,
@@ -34,10 +38,10 @@ func (r *Repository) GetById(id int64) (*domain.Subscription, error) {
 	return sub, nil
 }
 
-func (r *Repository) DeleteById(id int64) error {
+func (storage *Storage) DeleteById(id int64) error {
 	query := "DELETE FROM subscriptions WHERE id = $1"
 
-	res, err := r.db.Exec(query, id)
+	res, err := storage.db.Exec(query, id)
 	if err != nil {
 		return fmt.Errorf("ошибка удаления строки: %w", err)
 	}
@@ -52,4 +56,78 @@ func (r *Repository) DeleteById(id int64) error {
 	}
 
 	return nil
+}
+
+func (storage *Storage) CreateSub(sub *models.Subscription) (int64, error) {
+	query := "INSERT into subscriptions (service_name, price, user_id, start_date, end_date) VALUES ($1,$2,$3,$4,$5) RETURNING id"
+
+	var id int64
+
+	err := storage.db.QueryRow(query, sub.ServiceName, sub.Price, sub.UserID, sub.StartDate, sub.EndDate).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка добавления записи в бд: %w", err)
+	}
+
+	return id, nil
+}
+
+func (storage *Storage) UpdateSub(id int64, sub models.UpdateSubscriptionRequest) error {
+	query := "UPDATE subscriptions SET service_name = $1, price = $2, start_date = $3, end_date = $4 WHERE id = $5"
+
+	res, err := storage.db.Exec(query, sub.ServiceName, sub.Price, sub.StartDate, sub.EndDate, id)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления записи в бд: %w", err)
+	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (storage *Storage) GetAll(limit int, offset int) ([]models.Subscription, error) {
+	var subscriptions []models.Subscription
+
+	query := `SELECT id, service_name, price, user_id, start_date, end_date 
+	          FROM subscriptions 
+			  ORDER BY id
+			  LIMIT $1 OFFSET $2`
+
+	rows, err := storage.db.Query(query, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса getall: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var subscription models.Subscription
+		var endDateNull sql.NullTime
+
+		err := rows.Scan(&subscription.ID,
+			&subscription.ServiceName,
+			&subscription.Price,
+			&subscription.UserID,
+			&subscription.StartDate,
+			&endDateNull)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
+		}
+
+		if endDateNull.Valid {
+			subscription.EndDate = &endDateNull.Time
+		} else {
+			subscription.EndDate = nil
+		}
+
+		subscriptions = append(subscriptions, subscription)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %w", err)
+	}
+
+	return subscriptions, nil
 }
