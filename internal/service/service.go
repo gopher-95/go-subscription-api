@@ -8,11 +8,11 @@ import (
 )
 
 type SubscriptionStorage interface {
-	Create(sub models.Subscription) (int64, error)
-	Get(id int64) (*models.Subscription, error)
-	Update(id int64, sub models.UpdateSubscriptionRequest) error
-	Delete(id int64) error
-	GetAll(limit int64, offest int64) (models.Subscription, error)
+	Create(sub *models.Subscription) (int, error)
+	Get(id int) (*models.Subscription, error)
+	Update(id int, sub *models.Subscription) (int, error)
+	Delete(id int) (int, error)
+	GetAll(limit int, offest int) (int, error)
 }
 
 type Service struct {
@@ -23,32 +23,35 @@ func NewService(storage SubscriptionStorage) *Service {
 	return &Service{storage: storage}
 }
 
-func (s *Service) Create(sub models.CreateSubscriptionRequest) (*models.Subscription, error) {
+func (s *Service) Create(sub models.CreateSubscriptionRequest) (int, error) {
+	//начало проверки входных данных из хэндлера
 	if sub.Price < 0 {
-		return nil, errors.New("цена не может быть меньше нуля")
+		return 0, errors.New("цена не может быть меньше нуля")
 	}
 
 	startDateParse, err := time.Parse("02-01-2006", sub.StartDate)
 	if err != nil {
-		return nil, errors.New("ошибка парсинга времени")
+		return 0, errors.New("ошибка парсинга времени")
 	}
 
 	var endDateParse *time.Time
 	if sub.EndDate != nil {
 		parsed, err := time.Parse("02-01-2006", *sub.EndDate)
 		if err != nil {
-			return nil, errors.New("некорректный формат даты окончания подписки")
+			return 0, errors.New("некорректный формат даты окончания подписки")
 		}
 		endDateParse = &parsed
 	}
 
 	if endDateParse != nil && endDateParse.Before(startDateParse) {
-		return nil, errors.New("дата окончания подписки не может быть раньше даты начала подписки")
+		return 0, errors.New("дата окончания подписки не может быть раньше даты начала подписки")
 	}
 
 	if startDateParse.Before(time.Now().Truncate(24 * time.Hour)) {
-		return nil, errors.New("дата начала подписки не может быть в прошлом")
+		return 0, errors.New("дата начала подписки не может быть в прошлом")
 	}
+
+	//конец проверки входных данных из хэндлера
 
 	subscription := &models.Subscription{
 		ServiceName: sub.ServiceName,
@@ -58,15 +61,95 @@ func (s *Service) Create(sub models.CreateSubscriptionRequest) (*models.Subscrip
 		EndDate:     endDateParse,
 	}
 
-	id, err := s.storage.Create(*subscription)
+	id, err := s.storage.Create(subscription)
 	if err != nil {
-		return nil, err
+		return 0, errors.New("ошибка выполнения create запроса к бд")
 	}
 
-	subscrip, err := s.storage.Get(id)
+	return id, nil
+}
+
+func (s *Service) Get(id int) (int, error) {
+	subscription, err := s.storage.Get(id)
 	if err != nil {
-		return nil, err
+		return 0, errors.New("ошибка получения данных из бд")
 	}
 
-	return subscrip, nil
+	return subscription.ID, nil
+}
+
+func (s *Service) Update(id int, user_id string, sub models.UpdateSubscriptionRequest) (int, error) {
+	//начало проверки входных данных из хэндлера
+	if sub.ServiceName == "" {
+		return 0, errors.New("ошибка выполнения update запроса, не указан service_name")
+	}
+
+	if sub.Price == 0 {
+		return 0, errors.New("ошибка выполнения update запроса, не указан price")
+	}
+
+	if sub.StartDate == "" {
+		return 0, errors.New("ошибка выполнения update запроса, не указан start_date")
+	}
+
+	parsedStartTime, err := time.Parse("02-01-2006", sub.StartDate)
+	if err != nil {
+		return 0, errors.New("не удалось запарсить время")
+	}
+
+	var parsedEndTime *time.Time
+	if sub.EndDate != nil {
+		parsed, err := time.Parse("02-01-2006", *sub.EndDate)
+		if err != nil {
+			return 0, errors.New("ошибка парсинга времени в update запросе: end_date")
+		}
+
+		parsedEndTime = &parsed
+
+	}
+
+	//конец проверки входных данных от хэндлера
+
+	subscription := models.Subscription{
+		ID:          id,
+		ServiceName: sub.ServiceName,
+		Price:       sub.Price,
+		UserID:      user_id,
+		StartDate:   parsedStartTime,
+		EndDate:     parsedEndTime,
+	}
+
+	rowsAffected, err := s.storage.Update(id, &subscription)
+	if err != nil {
+		return 0, errors.New("ошибка выполнения update запроса к бд")
+	}
+
+	return rowsAffected, nil
+}
+
+func (s *Service) Delete(id int) (int, error) {
+	if id == 0 {
+		return 0, errors.New("ошибка выполнения delete запроса: не указан id")
+	}
+
+	rowsAffected, err := s.storage.Delete(id)
+	if err != nil {
+		return 0, errors.New("ошибка выполнения delete запроса к бд")
+	}
+
+	return rowsAffected, nil
+}
+
+func (s *Service) GetAll(limit, offset int) (int, error) {
+	if limit == 0 || offset == 0 {
+		return 0, errors.New("ошибка выполнения getall запроса: не указаны limit и offset")
+	}
+
+	rows, err := s.storage.GetAll(limit, offset)
+	if err != nil {
+		return 0, errors.New("ошибка выполнения getall запроса к бд")
+	}
+
+	return rows, nil
+
 }
