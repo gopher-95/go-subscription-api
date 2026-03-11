@@ -8,6 +8,7 @@ Go 1.24, PostgreSQL 15, Docker, Chi, go-migrate
 Миграции БД применяются автоматически при запуске.
 
 ## Запуск
+```bash
 git clone https://github.com/gopher-95/go-subscription-api
 cd go-subscription-api
 docker-compose up --build
