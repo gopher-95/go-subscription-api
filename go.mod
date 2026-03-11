@@ -1,6 +1,6 @@
 module github.com/gopher-95/go-subscription-api
 
-go 1.25.0
+go 1.24.0
 
 require github.com/joho/godotenv v1.5.1
 

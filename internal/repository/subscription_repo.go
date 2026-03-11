@@ -15,7 +15,8 @@ func NewStorage(db *sql.DB) *Storage {
 	return &Storage{db: db}
 }
 
-func (storage *Storage) CreateSub(sub *models.Subscription) (int, error) {
+// функция возвращает индентификатор последней добавленной записи
+func (storage *Storage) Create(sub *models.Subscription) (int, error) {
 	query := "INSERT INTO subscriptions (service_name, price, user_id, start_date, end_date) VALUES ($1,$2,$3,$4,$5) RETURNING id"
 
 	var id int
@@ -28,7 +29,8 @@ func (storage *Storage) CreateSub(sub *models.Subscription) (int, error) {
 	return id, nil
 }
 
-func (storage *Storage) GetById(id int) (*models.Subscription, error) {
+// фукнция возвращает информацию о подписке
+func (storage *Storage) Get(id int) (*models.Subscription, error) {
 	sub := &models.Subscription{}
 
 	query := "SELECT id, service_name, price, user_id, start_date, end_date FROM subscriptions WHERE id = $1"
@@ -51,7 +53,8 @@ func (storage *Storage) GetById(id int) (*models.Subscription, error) {
 	return sub, nil
 }
 
-func (storage *Storage) UpdateSub(id int, sub *models.Subscription) (int, error) {
+// функция возвраoает количество измененных строк
+func (storage *Storage) Update(id int, sub *models.Subscription) (int, error) {
 	query := "UPDATE subscriptions SET service_name = $1, price = $2, start_date = $3, end_date = $4 WHERE id = $5"
 
 	res, err := storage.db.Exec(query, sub.ServiceName, sub.Price, sub.StartDate, sub.EndDate, id)
@@ -59,7 +62,11 @@ func (storage *Storage) UpdateSub(id int, sub *models.Subscription) (int, error)
 		return 0, fmt.Errorf("ошибка обновления записи в бд: %w", err)
 	}
 
-	rowsAffected, _ := res.RowsAffected()
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения количества удаленных записей: %w", err)
+	}
+
 	if rowsAffected == 0 {
 		return 0, sql.ErrNoRows
 	}
@@ -67,7 +74,7 @@ func (storage *Storage) UpdateSub(id int, sub *models.Subscription) (int, error)
 	return int(rowsAffected), nil
 }
 
-func (storage *Storage) DeleteById(id int) (int, error) {
+func (storage *Storage) Delete(id int) (int, error) {
 	query := "DELETE FROM subscriptions WHERE id = $1"
 
 	res, err := storage.db.Exec(query, id)
