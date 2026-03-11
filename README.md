@@ -12,10 +12,11 @@ Go 1.24, PostgreSQL 15, Docker, Chi, go-migrate
 git clone https://github.com/gopher-95/go-subscription-api
 cd go-subscription-api
 docker-compose up --build
+```
 
 Сервис: `http://localhost:8080`
 
-##Методы API
+## Методы API
 
 | Метод     |              URL             | Описание |
 |-----------|------------------------------|----------|
@@ -35,11 +36,13 @@ curl -X POST http://localhost:8080/api/v1/subscriptions \
     "user_id": "123e4567-e89b-12d3-a456-426614174000",
     "start_date": "03-2026"
   }'
+```
 
 ## Конфигурация
 ```bash
 cp .env.example .env
 отредактировать .env
+```
 
 Автор:
 gopher-95
