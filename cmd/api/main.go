@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/gopher-95/go-subscription-api/internal/config"
 	"github.com/gopher-95/go-subscription-api/internal/handlers"
@@ -13,19 +14,24 @@ import (
 func main() {
 	cfg := config.Load()
 
+	slog.Info("Starting application...")
+
+	slog.Info("Загружаем конфигурацию")
+
 	err := repository.RunMigrations(cfg.ConnectionStringToMigrator())
 	if err != nil {
-		log.Fatal("не удалось создать миграции для бд: ", err)
+		slog.Error("Migration failed: password is incorrect")
 	}
-	log.Println("Миграции выполнены")
+	slog.Info("migrations completed")
 
 	db, err := repository.NewDB(cfg.ConnectionStringToDB())
 	if err != nil {
-		log.Println("не удалось запустить бд")
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
-	log.Println("База данных готова к работе")
+	slog.Info("database connected")
 
 	storage := repository.NewStorage(db)
 	subscriptionService := service.NewService(storage)
@@ -36,7 +42,7 @@ func main() {
 	srv := server.NewServer(cfg.SERVER_PORT, router)
 	err = srv.Run()
 	if err != nil {
-		log.Fatal("ошибка запуска сервера:", err)
+		slog.Error("server failed", "error", err)
 	}
 
 }

@@ -14,6 +14,7 @@ type SubscriptionStorage interface {
 	Update(id int, sub *models.Subscription) (int, error)
 	Delete(id int) (int, error)
 	GetAll(limit int, offest int) ([]models.Subscription, error)
+	GetSubscriptionsForPeriod(startDate, endDate time.Time, userID, serviceName *string) ([]models.Subscription, error)
 }
 
 type Service struct {
@@ -182,4 +183,90 @@ func (s *Service) GetAll(limit, offset int) ([]models.Subscription, error) {
 
 	return subscriptions, nil
 
+}
+
+func (s *Service) CalculateTotalCost(req models.TotalCostRequest) (*models.TotalCostResponse, error) {
+	if req.StartDate == "" {
+		return nil, errors.New("не указана дата начала периода")
+	}
+	if req.EndDate == "" {
+		return nil, errors.New("не указана дата окончания периода")
+	}
+
+	startPeriod, err := time.Parse("01-2006", req.StartDate)
+	if err != nil {
+		return nil, errors.New("некорректный формат даты начала периода. Используйте MM-YYYY")
+	}
+
+	endPeriod, err := time.Parse("01-2006", req.EndDate)
+	if err != nil {
+		return nil, errors.New("некорректный формат даты окончания периода. Используйте MM-YYYY")
+	}
+
+	if startPeriod.After(endPeriod) {
+		return nil, errors.New("дата начала периода не может быть позже даты окончания")
+	}
+
+	subscriptions, err := s.storage.GetSubscriptionsForPeriod(
+		startPeriod,
+		endPeriod,
+		req.UserID,
+		req.ServiceName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения подписок за период: %w", err)
+	}
+
+	totalCost := 0
+	for _, sub := range subscriptions {
+
+		subStart := sub.StartDate
+		subEnd := time.Now()
+		if sub.EndDate != nil {
+			subEnd = *sub.EndDate
+		}
+
+		calcStart := subStart
+		if startPeriod.After(subStart) {
+			calcStart = startPeriod
+		}
+
+		calcEnd := subEnd
+		if endPeriod.Before(subEnd) {
+			calcEnd = endPeriod
+		}
+
+		if calcStart.After(calcEnd) {
+			continue
+		}
+
+		months := 0
+		for y := calcStart.Year(); y <= calcEnd.Year(); y++ {
+			startMonth := 1
+			if y == calcStart.Year() {
+				startMonth = int(calcStart.Month())
+			}
+			endMonth := 12
+			if y == calcEnd.Year() {
+				endMonth = int(calcEnd.Month())
+			}
+			months += (endMonth - startMonth + 1)
+		}
+
+		totalCost += sub.Price * months
+	}
+
+	response := &models.TotalCostResponse{
+		TotalCost: totalCost,
+		Period:    req.StartDate + " - " + req.EndDate,
+	}
+
+	if req.UserID != nil {
+		response.UserID = *req.UserID
+	}
+	if req.ServiceName != nil {
+		response.Service = *req.ServiceName
+	}
+
+	return response, nil
 }

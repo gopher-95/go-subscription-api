@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/gopher-95/go-subscription-api/internal/models"
 )
@@ -20,7 +21,6 @@ func (storage *Storage) Create(sub *models.Subscription) (int, error) {
 	query := "INSERT INTO subscriptions (service_name, price, user_id, start_date, end_date) VALUES ($1,$2,$3,$4,$5) RETURNING id"
 
 	var id int
-
 	err := storage.db.QueryRow(query, sub.ServiceName, sub.Price, sub.UserID, sub.StartDate, sub.EndDate).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("ошибка добавления записи в бд: %w", err)
@@ -53,7 +53,7 @@ func (storage *Storage) Get(id int) (*models.Subscription, error) {
 	return sub, nil
 }
 
-// функция возвраoает количество измененных строк
+// функция возвращает количество измененных строк
 func (storage *Storage) Update(id int, sub *models.Subscription) (int, error) {
 	query := "UPDATE subscriptions SET service_name = $1, price = $2, start_date = $3, end_date = $4 WHERE id = $5"
 
@@ -137,4 +137,63 @@ func (storage *Storage) GetAll(limit int, offset int) ([]models.Subscription, er
 	}
 
 	return subscriptions, nil
+}
+
+func (storage *Storage) GetSubscriptionsForPeriod(startDate, endDate time.Time, userID, serviceName *string) ([]models.Subscription, error) {
+	var subscriotions []models.Subscription
+	var rows *sql.Rows
+	var err error
+
+	query := `
+        SELECT id, service_name, price, user_id, start_date, end_date
+        FROM subscriptions
+        WHERE start_date <= $1  -- подписка началась не позже конца периода
+        AND (end_date IS NULL OR end_date >= $2)  -- подписка не закончилась до начала периода
+    `
+
+	args := []interface{}{endDate, startDate}
+	argCount := 2
+
+	if userID != nil {
+		argCount++
+		query += ` AND user_id = $` + fmt.Sprint(argCount)
+		args = append(args, *userID)
+	}
+
+	if serviceName != nil {
+		argCount++
+		query += ` AND service_name = $` + fmt.Sprint(argCount)
+		args = append(args, *serviceName)
+	}
+
+	rows, err = storage.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполения запроса за период: %w", err)
+	}
+
+	for rows.Next() {
+		var sub models.Subscription
+		var endDateNull sql.NullTime
+
+		err := rows.Scan(
+			&sub.ID,
+			&sub.ServiceName,
+			&sub.Price,
+			&sub.UserID,
+			&sub.StartDate,
+			&endDateNull,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %w", err)
+		}
+
+		if endDateNull.Valid {
+			sub.EndDate = &endDateNull.Time
+		}
+
+		subscriotions = append(subscriotions, sub)
+	}
+
+	return subscriotions, nil
 }

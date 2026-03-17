@@ -95,7 +95,6 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 
 	rowsAffected, err := handler.service.Update(id, updateRequest)
 	if err != nil {
-		// Обрабатываем все возможные ошибки из сервиса
 		switch err.Error() {
 		case "ошибка выполнения update запроса, не указан service_name":
 			jsonError(w, http.StatusBadRequest, "название сервиса не может быть пустым")
@@ -122,12 +121,10 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 			jsonError(w, http.StatusBadRequest, "дата начала не может быть в прошлом")
 
 		default:
-			// Проверяем, может это ошибка "запись не найдена" из storage?
 			if err.Error() == "ошибка выполнения update запроса к бд: sql: no rows in result set" {
 				jsonError(w, http.StatusNotFound, "подписка с указанным id не найдена")
 				return
 			}
-			// Все остальные ошибки - проблемы с БД
 			jsonError(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
 		}
 		return
@@ -219,6 +216,54 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 			"count":  len(subscriptions),
 		},
 	})
+}
+
+func (handler *SubscriptionHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+
+	startDate := query.Get("start_date")
+	endDate := query.Get("end_date")
+	userID := query.Get("user_id")
+	serviceName := query.Get("service_name")
+
+	if startDate == "" {
+		jsonError(w, http.StatusBadRequest, "не указан параметр start_date")
+		return
+	}
+	if endDate == "" {
+		jsonError(w, http.StatusBadRequest, "не указан параметр end_date")
+		return
+	}
+
+	req := models.TotalCostRequest{
+		StartDate: startDate,
+		EndDate:   endDate,
+	}
+
+	if userID != "" {
+		req.UserID = &userID
+	}
+	if serviceName != "" {
+		req.ServiceName = &serviceName
+	}
+
+	result, err := handler.service.CalculateTotalCost(req)
+	if err != nil {
+		switch err.Error() {
+		case "не указана дата начала периода",
+			"не указана дата окончания периода",
+			"некорректный формат даты начала периода. Используйте MM-YYYY",
+			"некорректный формат даты окончания периода. Используйте MM-YYYY",
+			"дата начала периода не может быть позже даты окончания":
+			jsonError(w, http.StatusBadRequest, err.Error())
+		default:
+			jsonError(w, http.StatusInternalServerError, "внутренняя ошибка сервера")
+		}
+		return
+	}
+
+	// 5. Успешный ответ
+	jsonResponse(w, http.StatusOK, result)
 }
 
 func readIDParam(r *http.Request) (int, error) {

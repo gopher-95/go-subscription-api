@@ -18,3 +18,17 @@ type UpdateCreateSubscriptionRequest struct {
 	StartDate   string  `json:"start_date"`
 	EndDate     *string `json:"end_date"`
 }
+
+type TotalCostRequest struct {
+	StartDate   string  `json:"start_date"`
+	EndDate     string  `json:"end_date"`
+	UserID      *string `json:"user_id"`
+	ServiceName *string `json:"service_name"`
+}
+
+type TotalCostResponse struct {
+	TotalCost int    `json:"total_cost"`
+	Period    string `json:"period"`
+	UserID    string `json:"user_id,omitempty"`
+	Service   string `json:"service,omitempty"`
+}

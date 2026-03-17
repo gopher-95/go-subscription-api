@@ -14,6 +14,7 @@ func Router(subscriptionHandler *handlers.SubscriptionHandler) *chi.Mux {
 		r.Put("/{id}", subscriptionHandler.Update)
 		r.Delete("/{id}", subscriptionHandler.Delete)
 		r.Get("/", subscriptionHandler.GetAll)
+		r.Get("/total-cost", subscriptionHandler.GetTotalCost)
 	})
 
 	return router
