@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -16,19 +17,26 @@ type SubscriptionHandler struct {
 }
 
 func NewSubscriptionHandler(service *service.Service) *SubscriptionHandler {
+	log.Println("инициализация HTTP обработчиков")
 	return &SubscriptionHandler{service: service}
 }
 
 func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
+	log.Println("POST /api/v1/subscriptions - создание подписки")
 	subscriptionRequest := models.UpdateCreateSubscriptionRequest{}
 	err := json.NewDecoder(r.Body).Decode(&subscriptionRequest)
 	if err != nil {
+		log.Printf("ошибка декодирования JSON: %v", err)
 		jsonError(w, http.StatusBadRequest, "не удалось выполнить create запрос")
 		return
 	}
 
+	log.Printf("📦 Данные запроса: service=%s, price=%d, user=%s",
+		subscriptionRequest.ServiceName, subscriptionRequest.Price, subscriptionRequest.UserID)
+
 	id, err := handler.service.Create(subscriptionRequest)
 	if err != nil {
+		log.Printf("ошибка создания подписки: %v", err)
 		switch err.Error() {
 		case "название подписки не указано",
 			"цена не может быть меньше нуля",
@@ -47,7 +55,7 @@ func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Reques
 
 		return
 	}
-
+	log.Printf("✅ Подписка создана: id=%d", id)
 	jsonResponse(w, http.StatusCreated, map[string]interface{}{
 		"message": "подписка успешно создана",
 		"id":      id,
@@ -57,20 +65,26 @@ func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Reques
 func (handler *SubscriptionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := readIDParam(r)
 	if err != nil {
+		log.Printf("ошибка получения ID из URL: %v", err)
 		jsonError(w, http.StatusBadRequest, "неправильно указан id")
 		return
 	}
 
+	log.Printf("GET /api/v1/subscriptions/%d", id)
+
 	subscription, err := handler.service.Get(id)
 	if err != nil {
 		if err.Error() == "запись с таким id не найдена" {
+			log.Printf("подписка id=%d не найдена", id)
 			jsonError(w, http.StatusNotFound, "подписка не найдена ")
 			return
 		}
+		log.Printf("ошибка получения подписки id=%d: %v", id, err)
 		jsonError(w, http.StatusInternalServerError, "не удалось выполнить запрос к бд")
 		return
 	}
 
+	log.Printf("✅ Подписка id=%d получена", id)
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"message":      "подписка успешно получена",
 		"subscription": subscription,
@@ -81,20 +95,29 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 
 	id, err := readIDParam(r)
 	if err != nil {
+		log.Printf("ошибка получения ID из URL: %v", err)
 		jsonError(w, http.StatusBadRequest, "неверно указан id записи, которую хотите изменить")
 		return
 	}
+
+	log.Printf("PUT /api/v1/subscriptions/%d - обновление", id)
 
 	var updateRequest models.UpdateCreateSubscriptionRequest
 
 	err = json.NewDecoder(r.Body).Decode(&updateRequest)
 	if err != nil {
+		log.Printf("ошибка декодирования JSON: %v", err)
 		jsonError(w, http.StatusBadRequest, "некорректный JSON")
 		return
 	}
 
+	log.Printf("данные обновления: service=%s, price=%d, start=%s",
+		updateRequest.ServiceName, updateRequest.Price, updateRequest.StartDate)
+
 	rowsAffected, err := handler.service.Update(id, updateRequest)
 	if err != nil {
+		log.Printf("ошибка обновления подписки id=%d: %v", id, err)
+
 		switch err.Error() {
 		case "ошибка выполнения update запроса, не указан service_name":
 			jsonError(w, http.StatusBadRequest, "название сервиса не может быть пустым")
@@ -134,6 +157,7 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 		jsonError(w, http.StatusNotFound, "подписка с указанным id не найдена")
 		return
 	}
+	log.Printf("ошибка обновления подписки id=%d: %v", id, err)
 
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"message":       "подписка успешно обновлена",
@@ -146,12 +170,17 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 func (handler *SubscriptionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := readIDParam(r)
 	if err != nil {
+		log.Printf("ошибка получения ID из URL: %v", err)
 		jsonError(w, http.StatusBadRequest, "неверно указан id")
 		return
 	}
 
+	log.Printf("DELETE /api/v1/subscriptions/%d", id)
+
 	deletedRows, err := handler.service.Delete(id)
 	if err != nil {
+		log.Printf("ошибка удаления подписки id=%d: %v", id, err)
+
 		switch err.Error() {
 		case "ошибка выполнения delete запроса: не указан id":
 			jsonError(w, http.StatusBadRequest, "не указан id в delete запросе")
@@ -163,10 +192,12 @@ func (handler *SubscriptionHandler) Delete(w http.ResponseWriter, r *http.Reques
 	}
 
 	if deletedRows == 0 {
+		log.Printf("подписка id=%d не найдена для удаления", id)
 		jsonError(w, http.StatusNotFound, "подписка не найдена")
 		return
 	}
 
+	log.Printf("✅ Подписка id=%d удалена", id)
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"message":       "подписка успешно удалена",
 		"deleted_count": deletedRows,
@@ -180,9 +211,12 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 	limit := 10
 	offset := 0
 
+	log.Printf("GET /api/v1/subscriptions - список (limit=%s, offset=%s)", limitStr, offsetStr)
+
 	if limitStr != "" {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit < 1 {
+			log.Printf("некорректный limit: %s", limitStr)
 			jsonError(w, http.StatusBadRequest, "limit должен быть положительным числом")
 			return
 		}
@@ -192,6 +226,7 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 	if offsetStr != "" {
 		parsedOffset, err := strconv.Atoi(offsetStr)
 		if err != nil || parsedOffset < 0 {
+			log.Printf("некорректный offset: %s", offsetStr)
 			jsonError(w, http.StatusBadRequest, "offset должен быть неотрицательным числом")
 			return
 		}
@@ -200,6 +235,7 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 
 	subscriptions, err := handler.service.GetAll(limit, offset)
 	if err != nil {
+		log.Printf("ошибка получения списка подписок: %v", err)
 		jsonError(w, http.StatusInternalServerError, "не удалось получить список подписок")
 		return
 	}
@@ -207,6 +243,9 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 	if subscriptions == nil {
 		subscriptions = []models.Subscription{}
 	}
+
+	log.Printf("✅ Получено подписок: %d (limit=%d, offset=%d)",
+		len(subscriptions), limit, offset)
 
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"subscriptions": subscriptions,
@@ -226,11 +265,16 @@ func (handler *SubscriptionHandler) GetTotalCost(w http.ResponseWriter, r *http.
 	userID := query.Get("user_id")
 	serviceName := query.Get("service_name")
 
+	log.Printf("GET /api/v1/subscriptions/total-cost - период: %s - %s, user=%s, service=%s",
+		startDate, endDate, userID, serviceName)
+
 	if startDate == "" {
+		log.Printf("отсутствует обязательный параметр start_date")
 		jsonError(w, http.StatusBadRequest, "не указан параметр start_date")
 		return
 	}
 	if endDate == "" {
+		log.Printf("отсутствует обязательный параметр end_date")
 		jsonError(w, http.StatusBadRequest, "не указан параметр end_date")
 		return
 	}
@@ -249,6 +293,8 @@ func (handler *SubscriptionHandler) GetTotalCost(w http.ResponseWriter, r *http.
 
 	result, err := handler.service.CalculateTotalCost(req)
 	if err != nil {
+		log.Printf("ошибка расчета стоимости: %v", err)
+
 		switch err.Error() {
 		case "не указана дата начала периода",
 			"не указана дата окончания периода",
@@ -262,7 +308,9 @@ func (handler *SubscriptionHandler) GetTotalCost(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 5. Успешный ответ
+	log.Printf("расчет стоимости завершен: %d₽ за период %s - %s",
+		result.TotalCost, startDate, endDate)
+
 	jsonResponse(w, http.StatusOK, result)
 }
 
@@ -279,6 +327,7 @@ func readIDParam(r *http.Request) (int, error) {
 
 // функция для формирования json ответа при ошибках
 func jsonError(w http.ResponseWriter, status int, message string) {
+	log.Printf("ответ: статус %d, ошибка: %s", status, message)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -288,6 +337,7 @@ func jsonError(w http.ResponseWriter, status int, message string) {
 
 // функция для формирования json ответа при успешном запросе
 func jsonResponse(w http.ResponseWriter, status int, data interface{}) {
+	log.Printf("ответ: статус %d", status)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(data)
