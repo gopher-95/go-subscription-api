@@ -19,6 +19,6 @@ func NewServer(port string, hanlder http.Handler) *Server {
 }
 
 func (s *Server) Run() error {
-	log.Printf("Сервер запущен на порту %s", s.httpServer.Addr)
+	log.Printf("сервер запущен на порту %s", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }

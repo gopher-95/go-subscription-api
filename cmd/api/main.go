@@ -9,7 +9,20 @@ import (
 	"github.com/gopher-95/go-subscription-api/internal/repository"
 	"github.com/gopher-95/go-subscription-api/internal/server"
 	"github.com/gopher-95/go-subscription-api/internal/service"
+
+	_ "github.com/gopher-95/go-subscription-api/docs"
 )
+
+// @title Subscription API Service
+// @version 1.0.0
+// @description REST сервис для управления подписками пользователей
+
+// @host localhost:8080
+// @BasePath /api/v1
+// @schemes http
+
+// @tag.name Subscriptions
+// @tag.description Операции с подписками пользователей
 
 func main() {
 	cfg := config.Load()

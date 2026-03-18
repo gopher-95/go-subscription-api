@@ -21,6 +21,17 @@ func NewSubscriptionHandler(service *service.Service) *SubscriptionHandler {
 	return &SubscriptionHandler{service: service}
 }
 
+// CreateSubscription
+// @Summary Создать новую подписку
+// @Description Создает запись о новой подписке пользователя
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param subscription body models.UpdateCreateSubscriptionRequest true "Данные подписки"
+// @Success 201 {object} map[string]interface{} "Подписка успешно создана"
+// @Failure 400 {object} map[string]string "Ошибка валидации"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions [post]
 func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Request) {
 	log.Println("POST /api/v1/subscriptions - создание подписки")
 	subscriptionRequest := models.UpdateCreateSubscriptionRequest{}
@@ -31,7 +42,7 @@ func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	log.Printf("📦 Данные запроса: service=%s, price=%d, user=%s",
+	log.Printf("данные запроса: service=%s, price=%d, user=%s",
 		subscriptionRequest.ServiceName, subscriptionRequest.Price, subscriptionRequest.UserID)
 
 	id, err := handler.service.Create(subscriptionRequest)
@@ -55,13 +66,24 @@ func (handler *SubscriptionHandler) Create(w http.ResponseWriter, r *http.Reques
 
 		return
 	}
-	log.Printf("✅ Подписка создана: id=%d", id)
+	log.Printf("подписка создана: id=%d", id)
 	jsonResponse(w, http.StatusCreated, map[string]interface{}{
 		"message": "подписка успешно создана",
 		"id":      id,
 	})
 }
 
+// GetSubscription
+// @Summary Получить подписку по ID
+// @Description Возвращает информацию о конкретной подписке
+// @Tags Subscriptions
+// @Produce json
+// @Param id path int true "ID подписки"
+// @Success 200 {object} map[string]interface{} "Подписка найдена"
+// @Failure 400 {object} map[string]string "Некорректный ID"
+// @Failure 404 {object} map[string]string "Подписка не найдена"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions/{id} [get]
 func (handler *SubscriptionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id, err := readIDParam(r)
 	if err != nil {
@@ -91,6 +113,19 @@ func (handler *SubscriptionHandler) Get(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// UpdateSubscription
+// @Summary Обновить существующую подписку
+// @Description Обновляет данные подписки по ID
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param id path int true "ID подписки"
+// @Param subscription body models.UpdateCreateSubscriptionRequest true "Новые данные подписки"
+// @Success 200 {object} map[string]interface{} "Подписка обновлена"
+// @Failure 400 {object} map[string]string "Ошибка валидации"
+// @Failure 404 {object} map[string]string "Подписка не найдена"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions/{id} [put]
 func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	id, err := readIDParam(r)
@@ -167,6 +202,17 @@ func (handler *SubscriptionHandler) Update(w http.ResponseWriter, r *http.Reques
 
 }
 
+// DeleteSubscription
+// @Summary Удалить подписку
+// @Description Удаляет подписку по ID
+// @Tags Subscriptions
+// @Produce json
+// @Param id path int true "ID подписки"
+// @Success 200 {object} map[string]interface{} "Подписка удалена"
+// @Failure 400 {object} map[string]string "Некорректный ID"
+// @Failure 404 {object} map[string]string "Подписка не найдена"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions/{id} [delete]
 func (handler *SubscriptionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := readIDParam(r)
 	if err != nil {
@@ -204,6 +250,17 @@ func (handler *SubscriptionHandler) Delete(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// GetAllSubscriptions
+// @Summary Получить список подписок
+// @Description Возвращает список всех подписок с пагинацией
+// @Tags Subscriptions
+// @Produce json
+// @Param limit query int false "Количество записей (по умолчанию 10)"
+// @Param offset query int false "Смещение (по умолчанию 0)"
+// @Success 200 {object} map[string]interface{} "Список подписок"
+// @Failure 400 {object} map[string]string "Ошибка в параметрах"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions [get]
 func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
@@ -257,6 +314,19 @@ func (handler *SubscriptionHandler) GetAll(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// GetTotalCost
+// @Summary Рассчитать стоимость подписок за период
+// @Description Возвращает суммарную стоимость всех подписок за указанный период с возможностью фильтрации
+// @Tags Subscriptions
+// @Produce json
+// @Param start_date query string true "Начало периода (MM-YYYY)"
+// @Param end_date query string true "Конец периода (MM-YYYY)"
+// @Param user_id query string false "Фильтр по ID пользователя"
+// @Param service_name query string false "Фильтр по названию сервиса"
+// @Success 200 {object} models.TotalCostResponse "Суммарная стоимость"
+// @Failure 400 {object} map[string]string "Ошибка в параметрах"
+// @Failure 500 {object} map[string]string "Внутренняя ошибка сервера"
+// @Router /subscriptions/total-cost [get]
 func (handler *SubscriptionHandler) GetTotalCost(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
