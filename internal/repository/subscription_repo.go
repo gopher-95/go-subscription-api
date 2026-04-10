@@ -69,9 +69,9 @@ func (storage *Storage) Get(id int) (*models.Subscription, error) {
 func (storage *Storage) Update(id int, sub *models.Subscription) (int, error) {
 	log.Printf("SQL UPDATE id=%d: service=%s, price=%d", id, sub.ServiceName, sub.Price)
 
-	query := "UPDATE subscriptions SET service_name = $1, price = $2, start_date = $3, end_date = $4 WHERE id = $5"
+	query := "UPDATE subscriptions SET service_name = $1, price = $2, user_id = $3, start_date = $4, end_date = $5 WHERE id = $6"
 
-	res, err := storage.db.Exec(query, sub.ServiceName, sub.Price, sub.StartDate, sub.EndDate, id)
+	res, err := storage.db.Exec(query, sub.ServiceName, sub.Price, sub.UserID, sub.StartDate, sub.EndDate, id)
 	if err != nil {
 		log.Printf("ошибка обновления id=%d: %v", id, err)
 		return 0, fmt.Errorf("ошибка обновления записи в бд: %w", err)

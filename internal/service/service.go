@@ -232,11 +232,9 @@ func (s *Service) CalculateTotalCost(req models.TotalCostRequest) (*models.Total
 
 	if req.UserID != nil {
 		log.Printf("фильтр по user_id: %s", *req.UserID)
-		return nil, errors.New("не указан user_id")
 	}
 	if req.ServiceName != nil {
 		log.Printf("фильтр по service_name: %s", *req.ServiceName)
-		return nil, errors.New("не указан service_name")
 	}
 
 	if req.StartDate == "" {
